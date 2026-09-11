@@ -1,4 +1,4 @@
-local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local assert = _tl_compat and _tl_compat.assert or assert; local string = _tl_compat and _tl_compat.string or string; local uv = require("luv")
+local _tl_compat; if (tonumber((_VERSION or ''):match('[%d.]*$')) or 0) < 5.3 then local p, m = pcall(require, 'compat53.module'); if p then _tl_compat = m end end; local assert = _tl_compat and _tl_compat.assert or assert; local io = _tl_compat and _tl_compat.io or io; local pcall = _tl_compat and _tl_compat.pcall or pcall; local string = _tl_compat and _tl_compat.string or string; local uv = require("luv")
 
 local parser = require("parser")
 
@@ -49,28 +49,47 @@ end
 
 
 function server:start()
-   local host = self.host
-   local port = self.port
-
    local tcp_server = uv.new_tcp(nil)
 
-   assert(tcp_server:bind(host, port, nil))
+   assert(tcp_server:bind(self.host, self.port, nil))
    tcp_server:listen(128, function()
       local tcp_client = uv.new_tcp(nil)
       tcp_server:accept(tcp_client)
+      local message_parser = parser.new()
 
       tcp_client:read_start(function(err, chunk)
          assert(not err, err)
-         if chunk then
-            tcp_client:write(chunk, nil)
-         else
+
+         if not chunk then
             tcp_client:shutdown(nil)
             tcp_client:close()
+            return
          end
+
+         local ok, parse_success, parse_err = pcall(message_parser.feed, message_parser, chunk)
+
+         if not ok then
+            tcp_client:write("HTTP/1.1 500 Internal server error", nil)
+            tcp_client:shutdown(nil)
+            tcp_client:close()
+            return
+         end
+
+         if not parse_success then
+            io.write(string.format("Parsing error: %s", parse_err))
+            tcp_client:write("HTTP/1.1 400 Bad Request\r\n\r\n", nil)
+            tcp_client:shutdown(nil)
+            tcp_client:close()
+            return
+         end
+
+         tcp_client:write("HTTP/1.1 200 Ok\r\n\r\n", nil)
+         tcp_client:shutdown(nil)
+         tcp_client:close()
       end)
    end)
 
-   print(string.format("Server listening at %s:%d", host, port))
+   io.write(string.format("Server listening at %s:%d", self.host, self.port))
 
    uv.run("default")
 end

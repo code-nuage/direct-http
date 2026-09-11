@@ -49,28 +49,47 @@ end
 
 --+ Logic +--
 function server:start()
-    local host = self:get_host()
-    local port = self:get_port()
-
     local tcp_server: uv.Tcp = uv.new_tcp(nil)
 
-    assert(tcp_server:bind(host, port, nil))
+    assert(tcp_server:bind(self:get_host(), self:get_port(), nil))
     tcp_server:listen(128, function()
         local tcp_client: uv.Tcp = uv.new_tcp(nil)
         tcp_server:accept(tcp_client)
+        local message_parser = parser.new()
 
         tcp_client:read_start(function(err: string, chunk: string)
             assert(not err, err)
-            if chunk then
-                tcp_client:write(chunk, nil)
-            else
+
+            if not chunk then
                 tcp_client:shutdown(nil)
                 tcp_client:close()
+                return
             end
+
+            local ok, parse_success, parse_err = pcall(message_parser.feed, message_parser, chunk)
+
+            if not ok then
+                tcp_client:write("HTTP/1.1 500 Internal server error", nil)
+                tcp_client:shutdown(nil)
+                tcp_client:close()
+                return
+            end
+
+            if not parse_success then
+                io.write(string.format("Parsing error: %s", parse_err))
+                tcp_client:write("HTTP/1.1 400 Bad Request\r\n\r\n", nil)
+                tcp_client:shutdown(nil)
+                tcp_client:close()
+                return
+            end
+
+            tcp_client:write("HTTP/1.1 200 Ok\r\n\r\n", nil)
+            tcp_client:shutdown(nil)
+            tcp_client:close()
         end)
     end)
 
-    print(string.format("Server listening at %s:%d", host, port))
+    io.write(string.format("Server listening at %s:%d", self:get_host(), self:get_port()))
 
     uv.run("default")
 end
