@@ -1,3 +1,5 @@
+local type http_header = require("iheader")
+
 local enum parser_state
     "request_line"
     "headers"
@@ -5,12 +7,6 @@ local enum parser_state
     "chunked_size"
     "chunked_data"
     "done"
-end
-
-
-local record http_header
-    key: string
-    value: string
 end
 
 local record parser

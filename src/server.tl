@@ -68,6 +68,9 @@ function server:start()
 
             local ok, parse_success, parse_err = pcall(message_parser.feed, message_parser, chunk)
 
+            local connection_header = message_parser:get_header("connection")
+            local keep_alive = not (connection_header and connection_header.value:lower() == "close")
+
             if not ok then
                 tcp_client:write("HTTP/1.1 500 Internal server error", nil)
                 tcp_client:shutdown(nil)
@@ -83,9 +86,15 @@ function server:start()
                 return
             end
 
-            tcp_client:write("HTTP/1.1 200 Ok\r\n\r\n", nil)
-            tcp_client:shutdown(nil)
-            tcp_client:close()
+            if message_parser:get_state() ~= "done" then
+                return
+            end
+
+            tcp_client:write("HTTP/1.1 200 Ok\r\nContent-Length: 0\r\n\r\n", nil)
+            if not keep_alive then
+                tcp_client:shutdown(nil)
+                tcp_client:close()
+            end
         end)
     end)
 
