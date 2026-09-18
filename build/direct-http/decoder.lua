@@ -45,20 +45,23 @@ function decoder:decode(req, chunk)
    while true do
       if not self.state then return false, "Parser has not state" end
 
+      local ok, err
       if self.state == "start_line" then
-         return self:decode_start_line(req)
+         ok, err = self:decode_start_line(req)
       elseif self.state == "headers" then
-         return self:decode_headers(req)
+         ok, err = self:decode_headers(req)
       elseif self.state == "body" then
-         return self:decode_body()
+         ok, err = self:decode_body()
       elseif self.state == "chunked_size" then
-         return self:decode_chunked_size()
+         ok, err = self:decode_chunked_size()
       elseif self.state == "chunked_data" then
-         return self:decode_chunked_data()
+         ok, err = self:decode_chunked_data()
       elseif self.state == "done" then
          req.body = table.concat(self.body_chunks)
          return true
       end
+
+      if ok ~= nil then return ok, err end
    end
 end
 
@@ -77,7 +80,6 @@ function decoder:decode_start_line(req)
 
    self.buffer = self.buffer:sub(line_end + 2)
    self.state = "headers"
-   return true
 end
 
 function decoder:decode_headers(req)
@@ -105,7 +107,6 @@ function decoder:decode_headers(req)
       if not key then return false, "Malformed header: " .. line end
       table.insert(req.headers, { key = key:lower(), value = value:lower() })
    end
-   return true
 end
 
 function decoder:decode_body()
@@ -115,6 +116,7 @@ function decoder:decode_body()
       table.insert(self.body_chunks, self.buffer)
       self.bytes_read = self.bytes_read + #self.buffer
       self.buffer = ""
+
       return true
    else
       table.insert(self.body_chunks, self.buffer:sub(1, remaining))
@@ -122,7 +124,6 @@ function decoder:decode_body()
       self.bytes_read = self.content_length
       self.state = "done"
    end
-   return true
 end
 
 function decoder:decode_chunked_size()
@@ -144,17 +145,15 @@ function decoder:decode_chunked_size()
       self.bytes_read = 0
       self.state = "chunked_data"
    end
-   return true
 end
 
 function decoder:decode_chunked_data()
    local remaining = self.content_length - self.bytes_read
 
-   if #self.buffer < remaining + 2 then return true end
+   if #self.buffer < remaining + 3 then return true end
 
    table.insert(self.body_chunks, self.buffer:sub(1, remaining))
    self.state = "chunked_size"
-   return true
 end
 
 return decoder

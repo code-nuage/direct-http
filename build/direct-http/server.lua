@@ -31,6 +31,7 @@ function server:start(callback)
    local listen_ok, listen_err = tcp_server:listen(128, function()
       local tcp_client = uv.new_tcp(nil)
       local dec = decoder.new()
+      local req = request.new()
 
       local accept_ok, accept_err = tcp_server:accept(tcp_client)
       if not accept_ok then
@@ -41,7 +42,6 @@ function server:start(callback)
 
       tcp_client:read_start(function(err, chunk)
          assert(not err, err)
-         local req = request.new()
          local res = response.new()
          local enc = encoder.new()
 
@@ -68,6 +68,10 @@ function server:start(callback)
             tcp_client:write("HTTP/1.1 400 Bad Request\r\n\r\n", nil)
             tcp_client:shutdown(nil)
             tcp_client:close()
+            return
+         end
+
+         if dec.state ~= "done" then
             return
          end
 

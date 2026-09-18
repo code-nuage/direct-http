@@ -30,7 +30,8 @@ function server:start(callback: function(req: request, res: response)): boolean
 
     local listen_ok, listen_err = tcp_server:listen(128, function()
         local tcp_client = uv.new_tcp(nil)
-        local dec: decoder = decoder.new()                                                          -- decoder should live through many chunks to support keepalive
+        local dec: decoder = decoder.new()                                                          -- decoder and request should live through many chunks to support multi chunks messages
+        local req: request = request.new()
 
         local accept_ok, accept_err = tcp_server:accept(tcp_client)
         if not accept_ok then
@@ -41,7 +42,6 @@ function server:start(callback: function(req: request, res: response)): boolean
 
         tcp_client:read_start(function(err: string, chunk: string)
             assert(not err, err)
-            local req: request = request.new()
             local res: response = response.new()
             local enc: encoder = encoder.new()
 
@@ -56,18 +56,22 @@ function server:start(callback: function(req: request, res: response)): boolean
             end, dec, req, chunk)
 
             if not decode_ok then
-                print("Decode error: ", decode_succeeded)                                           -- decode_succeeded is the xpca, "messagell error here, Have to be replaced by logs
+                print("Decode error: ", decode_succeeded)                                           -- decode_succeeded is the xpca, "messagell error here, have to be replaced by logs
                 tcp_client:write("HTTP/1.1 500 Internal Server Error\r\n\r\n", nil)
                 tcp_client:shutdown(nil)
                 tcp_client:close()
                 return
             end
 
-            if not decode_succeeded then                                                            -- decode_succeeded is the boolean returned by dec.decode here, Have to be replaced by logs
+            if not decode_succeeded then                                                            -- decode_succeeded is the boolean returned by dec.decode here, have to be replaced by logs
                 print("Decode error: ", decode_err)
                 tcp_client:write("HTTP/1.1 400 Bad Request\r\n\r\n", nil)
                 tcp_client:shutdown(nil)
                 tcp_client:close()
+                return
+            end
+
+            if dec.state ~= "done" then
                 return
             end
 

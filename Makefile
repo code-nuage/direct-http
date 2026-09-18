@@ -13,4 +13,4 @@ install:
 	luarocks make --local
 
 run:
-	cd $(BUILD_PATH) && lua $(ENTRY_POINT).lua
+	cd $(BUILD_PATH) && luajit $(ENTRY_POINT).lua
