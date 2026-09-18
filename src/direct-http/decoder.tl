@@ -13,8 +13,8 @@ local record decoder
     new: function(): decoder
 
     reset: function(self)
-    decode: function(self, req: request, chunk: string): (boolean, string)
 
+    decode: function(self, req: request, chunk: string): (boolean, string)
     decode_start_line: function(self, req: request): (boolean, string)
     decode_headers: function(self, req: request): (boolean, string)
     decode_body: function(self): (boolean, string)

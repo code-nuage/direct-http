@@ -8,6 +8,8 @@ local record request
     body: string
 
     new: function(): request
+
+    get_header: function(self, key: string): i_header
 end
 
 function request.new(): request
